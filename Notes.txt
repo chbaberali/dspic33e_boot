@@ -1,0 +1,6 @@
+
+
+######################## Section 1 ######################## 
+1. DS70000618D-Page 3 -- Volatile memory options
+2. Non-Volatile memory where the configuration bits are stored indefinitely are accessed using Table read and write 
+   see dspic33e-FRM page 3 for details.
