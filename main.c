@@ -53,7 +53,7 @@
 // _PERSISTENT char buffer[128*3]; // this needs to be persistent so as to not step on persistent variables in user's program
 
 int main(void) {
-    unsigned char Result; 
+    //unsigned char Result; 
     /*
      * configure Oscillator
      */
