@@ -38,24 +38,25 @@
 // TODO Insert C++ class definitions if appropriate
 
 // TODO Insert declarations
-void FlashErasebyte(long addr);
 
-void FlashWritebyte(long addr, char *data);
+void FM_PageErase(unsigned char TablePage, unsigned int offset);
 
-void WriteLatches(unsigned int , unsigned int ,  char *data );
+unsigned long FM_MemRead(unsigned int, unsigned int);
 
-unsigned long ReadLatches(unsigned int , unsigned int );
+void Row_WriteLatches(void);
 
-void FM_PageErase(unsigned int TblAdr, unsigned int Addrhi, unsigned int  Addrlow);
+unsigned long ReadLatches(unsigned char , unsigned int );
 
-void Pagewrite();
+void FM_Single_Row_Prog (unsigned char, unsigned int , unsigned char *);
 
-long unsigned int FM_MemRead(unsigned int , unsigned int );
+void FM_TWO_Word_Prog (unsigned char, unsigned int, unsigned int *);
+
+void TwoWord_WriteLatches(void);
 
 // Comment a function and leverage automatic documentation with slash star star
 /**
     <p><b>Function prototype:</b></p>
-  
+  , 
     <p><b>Summary:</b></p>
 
     <p><b>Description:</b></p>

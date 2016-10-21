@@ -11,6 +11,7 @@
 
 #include <xc.h>
 #include "RS232_header.h"
+#include "Flash_Setup.h"
 #include "p33EP512MU810.h"
 
 #pragma config GWRP = OFF               // General Segment Write-Protect bit (General Segment may be written)
@@ -50,13 +51,15 @@
 #pragma config APL = OFF                // Auxiliary Segment Code-protect bit (Aux Flash Code protect is disabled)
 #pragma config APLK = OFF               // Auxiliary Segment Key bits (Aux Flash Write Protection and Code Protection is Disabled)
 
-// _PERSISTENT char buffer[128*3]; // this needs to be persistent so as to not step on persistent variables in user's program
+unsigned char buffer[128*3]; // this needs to be persistent so as to not step on persistent variables in user's program
 
 int main(void) {
     //unsigned char Result; 
     /*
      * configure Oscillator
      */
+    unsigned int i = 0; 
+    unsigned long data1, data2;
     __builtin_write_OSCCONH( 0x02 );            // Initiate Clock Switch to External // NOSC = 0x02,
     __builtin_write_OSCCONL( OSCCON || 0x01 );  // Start clock switching
 	while (OSCCONbits.COSC != 0x02);       // Wait for Shifting to new Oscillator
@@ -65,7 +68,18 @@ int main(void) {
      * try to blink LED here
      */
     
+    for (i=0; i<128*3; i++) {
+        buffer[i] = 0x0B; // this needs to be persistent so as to not step on persistent variables in user's program
+    }
+    //FM_PageErase(0x022000);
+    FM_PageErase(0x02, 0x2000);
+    //FM_Single_Row_Prog (0x022000, 0x0, 0x01);
+    //FM_Single_Row_Prog (0x02, 0x2000, &buffer[0]);
+    FM_TWO_Word_Prog (0x02, 0x2000, &buffer[0]);
+    data1 = FM_MemRead(0x02, 0x2000);
+    data2 = FM_MemRead(0x02, 0x2002);
     UART1Init();
+    
     
     while (1) {
         UART1TxString("dsPIC33ep512MU810 \n");
