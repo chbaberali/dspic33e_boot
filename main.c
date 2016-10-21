@@ -62,7 +62,7 @@ int main(void) {
     unsigned long data1, data2;
     __builtin_write_OSCCONH( 0x02 );            // Initiate Clock Switch to External // NOSC = 0x02,
     __builtin_write_OSCCONL( OSCCON || 0x01 );  // Start clock switching
-	while (OSCCONbits.COSC != 0x02);       // Wait for Shifting to new Oscillator
+	while (OSCCONbits.COSC != 0x02);            // Wait for Shifting to new Oscillator
     
     /*
      * try to blink LED here
@@ -73,9 +73,7 @@ int main(void) {
     }
     //FM_PageErase(0x022000);
     FM_PageErase(0x02, 0x2000);
-    //FM_Single_Row_Prog (0x022000, 0x0, 0x01);
-    //FM_Single_Row_Prog (0x02, 0x2000, &buffer[0]);
-    FM_TWO_Word_Prog (0x02, 0x2000, &buffer[0]);
+    FM_Single_Row_Prog (0x02, 0x2000, &buffer[0]);
     data1 = FM_MemRead(0x02, 0x2000);
     data2 = FM_MemRead(0x02, 0x2002);
     UART1Init();
