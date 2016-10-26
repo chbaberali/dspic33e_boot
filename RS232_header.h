@@ -37,6 +37,14 @@
 #define BaudRate 9600
 #define FCY 50000000
 #define BAUD ((FCY/BaudRate)/16)-1
+
+#define CMD_DEV_ID      0x00 
+#define CMD_BL_VER      0x01
+#define CMD_WRITE_FLASH 0x02
+#define CMD_READ_FLASH  0x03
+#define CMD_RESET_DEV   0x04
+
+
 // TODO Insert C++ class definitions if appropriate
 
 // TODO Insert declarations
@@ -44,6 +52,7 @@ void UART1Init(void);
 void UART1TxByte(char byte);
 char UART1RxByte(unsigned int timeout);
 void UART1TxString(char *str);
+void BL_Receive_Cmd(void);
 
 // Comment a function and leverage automatic documentation with slash star star
 /**

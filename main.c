@@ -44,48 +44,83 @@
 // FICD
 #pragma config ICS = PGD1               // ICD Communication Channel Select bits (Communicate on PGEC1 and PGED1)
 #pragma config RSTPRI = PF              // Reset Target Vector Select bit (Device will obtain reset instruction from Primary flash)
-        #pragma config JTAGEN = OFF             // JTAG Enable bit (JTAG is disabled)
+#pragma config JTAGEN = OFF             // JTAG Enable bit (JTAG is disabled)
 
 // FAS -- need to read
 #pragma config AWRP = OFF               // Auxiliary Segment Write-protect bit (Auxiliary program memory is not write-protected)
 #pragma config APL = OFF                // Auxiliary Segment Code-protect bit (Aux Flash Code protect is disabled)
 #pragma config APLK = OFF               // Auxiliary Segment Key bits (Aux Flash Write Protection and Code Protection is Disabled)
 
-unsigned char buffer[128*3]; // this needs to be persistent so as to not step on persistent variables in user's program
+unsigned long temp1, temp2;
 
+unsigned char buffer[128*3 +1]; // receive buffer 128*3*8
+unsigned int BuffCount;
+unsigned char Rcv_byte;
+    
 int main(void) {
     //unsigned char Result; 
     /*
      * configure Oscillator
      */
     unsigned int i = 0; 
-    unsigned long data1, data2;
+    
     __builtin_write_OSCCONH( 0x02 );            // Initiate Clock Switch to External // NOSC = 0x02,
     __builtin_write_OSCCONL( OSCCON || 0x01 );  // Start clock switching
 	while (OSCCONbits.COSC != 0x02);            // Wait for Shifting to new Oscillator
     
     /*
      * try to blink LED here
-     */
+     */  
     
-    for (i=0; i<128*3; i++) {
-        buffer[i] = 0x0B; // this needs to be persistent so as to not step on persistent variables in user's program
+    for (i=0; i < sizeof(buffer)-1; i++) {
+        buffer[i] = 0x65; // this needs to be persistent so as to not step on persistent variables in user's program
     }
-    //FM_PageErase(0x022000);
-    FM_PageErase(0x02, 0x2000);
-    FM_Single_Row_Prog (0x02, 0x2000, &buffer[0]);
-    data1 = FM_MemRead(0x02, 0x2000);
-    data2 = FM_MemRead(0x02, 0x2002);
+//    FM_PageErase(0x022000);
+      FM_PageErase(0x02, 0x2000);
+      //FM_Page_Write (0x02, 0x2000, &buffer[0]);
+      FM_Single_Row_Prog (0x02, 0x2000, &buffer[0]);
+      temp1 = FM_MemRead(0x00, 0x0200);
+      temp2 = FM_MemRead(0x00, 0x0202);
+    
     UART1Init();
-    
-    
     while (1) {
         UART1TxString("dsPIC33ep512MU810 \n");
+        Rcv_byte = UART1RxByte(200);
+        if (Rcv_byte)
+        {
+            UART1TxByte(Rcv_byte+0x30);
+        }
+        
     }
     return 0;
 }
 
-void __attribute__((__interrupt__,auto_psv)) _U1TXInterrupt(void)
+void BL_Receive_Cmd(void)
 {
-    IFS0bits.U1TXIF = 0;                     // Clear TX Interrupt flag
+
+    Rcv_byte = UART1RxByte(200);
+    switch (Rcv_byte)
+    {
+        case CMD_DEV_ID: 
+            temp1 = FM_MemRead(0xFF, 0x0000);
+            temp2 = FM_MemRead(0xFF, 0x0002);
+            // send via UART
+            break;
+            
+        case CMD_BL_VER: 
+            temp1 = 0x01;
+            temp2 = 0x00;
+            break;
+        case CMD_WRITE_FLASH: 
+            // reserve last two pages of PM
+            break;
+        case CMD_READ_FLASH: 
+            // read specific location using FM_MemRead(0xFF, 0x0000);
+            break;
+        case CMD_RESET_DEV: 
+            asm("RESET");
+            break;
+        default:
+            break;
+    }
 }

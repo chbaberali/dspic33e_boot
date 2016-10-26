@@ -49,9 +49,7 @@ unsigned long ReadLatches(unsigned char , unsigned int );
 
 void FM_Single_Row_Prog (unsigned char, unsigned int , unsigned char *);
 
-void FM_TWO_Word_Prog (unsigned char, unsigned int, unsigned int *);
-
-void TwoWord_WriteLatches(void);
+void FM_Page_Write (unsigned char TablePage, unsigned int offset, unsigned char *data);
 
 // Comment a function and leverage automatic documentation with slash star star
 /**

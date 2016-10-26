@@ -16,11 +16,11 @@
 #define FLASH_PAGE_ERASE_CODE   0x4003 //erase entire page
 
 
-#define BYTES_PER_INSTRUCTION  3 
-#define INSTR_PER_ROW 128
-#define ROW_PER_PAGE   8
-#define BYTES_PER_ROW (INSTR_PER_ROW * BYTES_PER_INSTRUCTION)
-#define PM_ERASE_SIZE (INSTR_PER_ROW * BYTES_PER_INSTRUCTION * ROW_PER_PAGE)    //default erase size
+//#define BYTES_PER_INSTRUCTION  3 
+//#define INSTR_PER_ROW 128
+//#define ROW_PER_PAGE   8
+//#define BYTES_PER_ROW (INSTR_PER_ROW * BYTES_PER_INSTRUCTION)
+//#define PM_ERASE_SIZE (INSTR_PER_ROW * BYTES_PER_INSTRUCTION * ROW_PER_PAGE)    //default erase size
 
 /* *********************************************************************************
 ********************************************************************************** */
@@ -50,7 +50,7 @@ void FM_PageErase(unsigned char TablePage, unsigned int offset) // tested
     // Insert two NOPs after the erase cycle (required)
     asm("nop");
     asm("nop");
-    while (NVMCON & 0x8000); //Wait for write end
+    asm("btsc    NVMCON, #15"); //Wait for write end
     asm ("pop    SR");
     asm("pop     TBLPAG");
 }
@@ -60,42 +60,93 @@ void FM_Single_Row_Prog (unsigned char TablePage, unsigned int offset, unsigned 
     /*
      *  w0 = TablePage
      *  w1 = offset
-     *  w2 = data
+     *  w2 = data address from RAM
      */
-      asm ("push SR");
-      asm ("push TBLPAG");
-      asm("mov w2,W8"); // save data address
-
     // Load the NVMADR register with the starting <programming address> 
       NVMADRU = TablePage;
       NVMADR = offset;
       
     // Setup NVMCON to write <1> row of program memory
     NVMCON = FLASH_ROW_PROG_CODE ;
+
+     // Load the program memory write latches
+
+    TBLPAG = 0xFA; // address of latch is 0xFA
+    asm("mov #0,W1"); // Lower 16-bit of Write Latches starts from 0
+    asm("MOV #128,W3");
+
+    asm("Rowloop:");  
+    asm("TBLWTL.b [W2++], [W1++]"); // TBLWTH Ws,Wd -> Write Ws to Prog 15:0
+    asm("TBLWTL.b [W2++], [W1--]");
+    asm("TBLWTH.b [W2++], [W1]");  // TBLWTH Ws,Wd -> Write Ws 7:0 to Prog 23:16
+    asm("INC2 W1, W1");
+    asm("DEC W3, W3");
+    asm("BRA NZ, Rowloop");
     
-    // Load the program memory write latches
-      Row_WriteLatches();
-      
     //Block all interrupt till write is complete
-        asm("mov#0x00E0, W0");
-        asm ("ior SR"); 
-        // sequence 
-   
-        asm("mov #0x55,W0");
-        asm("mov W0, NVMKEY");
-        asm("mov #0xAA,W0");
-        asm("mov W0,NVMKEY");
-        // Start erase operation
-        asm("bset NVMCON,#15");
-        // Insert two NOPs after the erase cycle (required)
-        asm("nop");
-        asm("nop");
+    asm ("push  SR");
+    asm("mov#0x00E0, W0");
+    asm ("ior SR"); 
+
+    // sequence 
+    __builtin_write_NVM();
+
 asm("wait:");
-        asm("btsc    NVMCON, #15");
-        asm("bra     wait");
-        asm ("pop    SR");
-        asm ("pop TBLPAG");
+    asm("btsc    NVMCON, #15");
+    asm("bra     wait");
+    asm ("pop    SR");
 }
+void FM_Page_Write (unsigned char TablePage, unsigned int offset, unsigned char *data)
+{
+    /*
+     *  w0 = TablePage
+     *  w1 = offset
+     *  w2 = data
+     */
+      unsigned char i;
+      //asm ("push TBLPAG");
+      asm("mov w2,W8"); // save data address
+      
+      // Load the program memory write latches
+      for (i = 0; i< 8; i++)
+      {
+          Row_WriteLatches();
+          
+          // Load the NVMADR register with the starting <programming address> 
+          NVMADRU = TablePage;
+          NVMADR = offset;
+          
+          // Setup NVMCON to write <1> row of program memory
+          NVMCON = FLASH_ROW_PROG_CODE ;
+          
+          //Block all interrupt till write is complete
+          asm ("push SR");
+          asm("mov#0x00E0, W0");
+          asm ("ior SR"); 
+          
+          // sequence 
+          asm("mov #0x55,W0");
+          asm("mov W0, NVMKEY");
+          asm("mov #0xAA,W0");
+          asm("mov W0,NVMKEY");
+          // Start programe/erase operation
+          asm("bset NVMCON,#15");
+          // Insert two NOPs after the erase cycle (required)
+          asm("nop");
+          asm("nop");
+          
+      asm("wait1:");
+        asm("btsc    NVMCON, #15");
+        asm("bra     wait1");
+        asm ("pop    SR");
+        
+        // calculate new address
+        offset = offset + 512; // compute new row address
+        
+         //asm ("pop TBLPAG");
+      }
+}
+
 unsigned long FM_MemRead(unsigned int TablePage, unsigned int TableOffset) //tested
 {
     /*
@@ -112,64 +163,65 @@ unsigned long FM_MemRead(unsigned int TablePage, unsigned int TableOffset) //tes
  */
 void Row_WriteLatches(void)
 {
+
     TBLPAG = 0xFA; // address of latch is 0xFA
-    asm("mov #0x00,W7"); // Lower 16-bit of Write Latches starts from 0
+    asm("mov #0,W7"); // Lower 16-bit of Write Latches starts from 0
     asm("MOV #128,W3");
 asm("loop:");  
-    asm("TBLWTH.b [W8++], [W7]");
-    asm("TBLWTL.b [W8++], [W7++]");
+    asm("TBLWTH.b [W8++], [W7]");  // TBLWTH Ws,Wd -> Write Ws 7:0 to Prog 23:16
+    asm("TBLWTL.b [W8++], [W7++]"); // TBLWTH Ws,Wd -> Write Ws to Prog 15:0
     asm("TBLWTL.b [W8++], [W7++]");
     asm("DEC W3, W3");
     asm("BRA NZ, loop");
-}
-void FM_TWO_Word_Prog (unsigned char TablePage, unsigned int offset, unsigned int *data)
-{
-    /*
-     *  w0 = TablePage
-     *  w1 = offset
-     *  w2 = data
-     */
-      asm ("push SR");
-      asm ("push TBLPAG");
-
-    // Load the NVMADR register with the starting <programming address> 
-      NVMADRU = TablePage;
-      NVMADR = offset;
-      
-    // Setup NVMCON to write <1> row of program memory
-    NVMCON = FLASH_WORD_PROG_CODE ;
     
-    // Load the program memory write latches
-     TwoWord_WriteLatches();
-      
-    //Block all interrupt till write is complete
-        asm("mov#0x00E0, W0");
-        asm ("ior SR"); 
-        // sequence 
-   
-        asm("mov #0x55,W0");
-        asm("mov W0, NVMKEY");
-        asm("mov #0xAA,W0");
-        asm("mov W0,NVMKEY");
-        // Start erase operation
-        asm("bset NVMCON,#15");
-        // Insert two NOPs after the erase cycle (required)
-        asm("nop");
-        asm("nop");
-asm("wait1:");
-        asm("btsc    NVMCON, #15");
-        asm("bra     wait1");
-        asm ("pop    SR");
-        asm ("pop TBLPAG");
 }
-void TwoWord_WriteLatches(void)
-{
-    TBLPAG = 0xFA; // address of latch is 0xFA
-    asm("mov #0x00,W7"); // Lower 16-bit of Write Latches starts from 0
-
-    asm("TBLWTL [W2++], [W7]");
-    asm("TBLWTH [W2++], [W7++]");
-    asm("TBLWTL [W2++], [W7]");
-    asm("TBLWTH [W2++], [W7++]");
-
-}
+//void FM_TWO_Word_Prog (unsigned char TablePage, unsigned int offset, unsigned int *data)
+//{
+//    /*
+//     *  w0 = TablePage
+//     *  w1 = offset
+//     *  w2 = data
+//     */
+//
+//    // Load the NVMADR register with the starting <programming address> 
+//      NVMADRU = TablePage;
+//      NVMADR = offset;
+//      
+//    // Setup NVMCON to write <1> row of program memory
+//    NVMCON = FLASH_WORD_PROG_CODE ;
+//    
+//    // Load the program memory write latches
+//     TwoWord_WriteLatches();
+//      
+//    //Block all interrupt till write is complete
+//        asm("mov#0x00E0, W0");
+//        asm ("ior SR"); 
+//        // sequence 
+//   
+//        asm("mov #0x55,W0");
+//        asm("mov W0, NVMKEY");
+//        asm("mov #0xAA,W0");
+//        asm("mov W0,NVMKEY");
+//        // Start erase operation
+//        asm("bset NVMCON,#15");
+//        // Insert two NOPs after the erase cycle (required)
+//        asm("nop");
+//        asm("nop");
+//asm("wait1:");
+//        asm("btsc    NVMCON, #15");
+//        asm("bra     wait1");
+//        asm ("pop    SR");
+//        asm ("pop TBLPAG");
+//}
+//void TwoWord_WriteLatches(void)
+//{
+//    TBLPAG = 0xFA; // address of latch is 0xFA
+//    asm("mov #0x00,W7"); // Lower 16-bit of Write Latches starts from 0
+//
+//    asm("TBLWTL [W2++], [W7]");
+//    asm("TBLWTH [W2++], [W7++]");
+//    
+//    asm("TBLWTL [W2++], [W7]");
+//    asm("TBLWTH [W2++], [W7++]");
+//
+//}
