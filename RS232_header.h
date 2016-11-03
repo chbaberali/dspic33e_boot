@@ -35,7 +35,8 @@
 
 // TODO Insert appropriate #include <>
 #define BaudRate 9600
-#define FCY 50000000
+//#define FCY 50000000
+#define FCY 40000000
 #define BAUD ((FCY/BaudRate)/16)-1
 
 #define CMD_DEV_ID      0x00 

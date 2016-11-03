@@ -26,20 +26,26 @@ void UART1Init()
      * Therefore, when configuring the RPn pin for input, the corresponding bit in the
      * TRISx register must be configured for input
      * 
-     * example for UART 1
      * 
-     * RPINR18bits.U1RXR = 0x10;  // Assign U1Rx To Pin RP16 (input)
-     * RPINR18bits.U1CTSR = 0x11; //  Assign U1CTS To Pin RP17
-     * 
-     * RPOR1bits.RP66 = 1; //  Assign U1Tx To Pin RP66 
-     * RPOR1bits.RP67 = 2; //  Assign U1RTS To Pin RP67
+     * UARTs is connected in this manner:
+     * U1TX on RB5	(RP65)
+     * U1RX on RB6	(RPI76)
      */
     
-    TRISDbits.TRISD1 = 0;                   // configure as output
-    TRISDbits.TRISD12 = 1;                  // configure as input
-    
-    RPOR0bits.RP65R0 = 1;                   //  Assign U1Tx To Pin RP65
+//    TRISDbits.TRISD1 = 0;                   // configure as output
+//    TRISDbits.TRISD12 = 1;                  // configure as input
+ //*************************************************************
+    // Unlock Registers
+    __builtin_write_OSCCONL(0x46);          // unlock sequence - step
+    __builtin_write_OSCCONL(0x57);          // unlock sequence - step 2 
+    _IOLOCK = 0;                            // unlock sequence - step 3 
+    RPOR0bits.RP65R = 0b00001;              //  Assign U1Tx To Pin RP65 -> pin 76
     RPINR18bits.U1RXR = 76;                 // Assign U1Rx To Pin RPI_76 (input)
+    // Lock Registers
+    __builtin_write_OSCCONL(0x46);          // lock sequence - step 1 
+   __builtin_write_OSCCONL(0x57);           // lock sequence - step 2 
+   _IOLOCK = 1;                             // lock sequence - step 3 
+ //*************************************************************
     
     U1MODEbits.STSEL = 0;                    // 1-Stop bit
     U1MODEbits.PDSEL = 0;                    // No Parity, 8-Data bits
