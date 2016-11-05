@@ -36,37 +36,38 @@ void UART1Init()
 //    TRISDbits.TRISD12 = 1;                  // configure as input
  //*************************************************************
     // Unlock Registers
-    __builtin_write_OSCCONL(0x46);          // unlock sequence - step
-    __builtin_write_OSCCONL(0x57);          // unlock sequence - step 2 
-    _IOLOCK = 0;                            // unlock sequence - step 3 
-    RPOR0bits.RP65R = 0b00001;              //  Assign U1Tx To Pin RP65 -> pin 76
-    RPINR18bits.U1RXR = 76;                 // Assign U1Rx To Pin RPI_76 (input)
-    // Lock Registers
-    __builtin_write_OSCCONL(0x46);          // lock sequence - step 1 
-   __builtin_write_OSCCONL(0x57);           // lock sequence - step 2 
-   _IOLOCK = 1;                             // lock sequence - step 3 
+
+   
+//    RPOR0bits.RP65R = 0b00001;              //  Assign U1Tx To Pin RP65 -> pin 76
+//    RPINR18bits.U1RXR = 76;                 // Assign U1Rx To Pin RPI_76 (input)
+
+
  //*************************************************************
-    
-    U1MODEbits.STSEL = 0;                    // 1-Stop bit
-    U1MODEbits.PDSEL = 0;                    // No Parity, 8-Data bits
-    U1MODEbits.ABAUD = 0;                    // Auto-Baud disabled
-    U1MODEbits.BRGH  = 0;                    // Standard-Speed mode, for fast mode set this bit to 1 and the constant to 4
-    U1BRG            = BAUD;                 // set baud rate generator Baud Rate setting for 9600
-    U1STAbits.UTXISEL0 = 0;                  // Interrupt after one TX character is transmitted
-    U1STAbits.UTXISEL1 = 0;
-    IFS0bits.U1TXIF    = 0;                  // Clear UART Tx interrupt flag
-    IEC0bits.U1TXIE    = 1;                  // Enable UART TX interrupt
-    U1STAbits.UTXEN    = 1;                  // Enable UART TX
-    U1MODEbits.UARTEN  = 1;                  // Enable UART
-    
+
+    U1MODE = 0x0;
+    U1BRG = BAUD;                // 40Mhz osc, 9600 Baud
+    U1STA = 0x0;
+//    IPC7 = 0x4400;              // Mid Range Interrupt Priority level, no urgent reason
+    IFS0bits.U1TXIF = 0;        // Clear the Transmit Interrupt Flag
+    IEC0bits.U1TXIE = 1;        // Enable Transmit Interrupts
+    IFS0bits.U1RXIF = 0;        // Clear the Recieve Interrupt Flag
+    IEC0bits.U1RXIE = 0;        // Enable Recieve Interrupts
+    _IOLOCK = 0;
+    RPOR9 = 0;
+    RPOR9bits.RP101R = 1;       //RF5/RP101 as U1TX
+    RPINR18bits.U1RXR = 100;    //RP100/RF4 as U1RX
+    _IOLOCK = 1;
+    U1MODEbits.UARTEN = 1;      // And turn the peripheral on
+    U1STAbits.UTXEN = 1;
+    IFS0bits.U1TXIF = 0;
 }
  
 // writes a byte to UART1
 void UART1TxByte(char byte)
 {
-    U1TXREG = byte;
 	if(U1STAbits.UTXBF) 
 		while(!U1STAbits.TRMT);	
+    U1TXREG = byte;
 }
 
 // reads a byte from UART 1 polling 
@@ -100,7 +101,7 @@ void DisableU1Rxinterrupt()
 	IEC0bits.U1RXIE = 0; // dsiable  UART Rx interrupt	
 }
 
-void __attribute__((__interrupt__,auto_psv)) _U1TXInterrupt(void)
+void __attribute__((__interrupt__,no_auto_psv)) _U1TXInterrupt(void)
 {
     IFS0bits.U1TXIF = 0;                     // Clear TX Interrupt flag
 }

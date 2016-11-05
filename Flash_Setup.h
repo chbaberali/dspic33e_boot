@@ -39,21 +39,21 @@
 
 // TODO Insert declarations
 
-void FM_PageErase(unsigned char TablePage, unsigned int offset);
+void FM_PageErase(unsigned int TablePage, unsigned int offset);
 
 unsigned long FM_MemRead(unsigned int, unsigned int);
 
-void Row_WriteLatches(void);
+void Row_WriteLatches(char *data);
 
 unsigned long ReadLatches(unsigned char , unsigned int );
 
-void FM_Single_Row_Prog (unsigned char, unsigned int , unsigned char *);
+void FM_Single_Row_Prog (unsigned int, unsigned int);
 
-void FM_Page_Write (unsigned char TablePage, unsigned int offset, unsigned char *data);
+void FM_Page_Write (unsigned int, unsigned int, char *);
 
 // Comment a function and leverage automatic documentation with slash star star
 /**
-    <p><b>Function prototype:</b></p>
+    </><b>Function prototype:</b></p>
   , 
     <p><b>Summary:</b></p>
 
