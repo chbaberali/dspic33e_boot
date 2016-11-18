@@ -34,7 +34,7 @@
 #include <xc.h> // include processor files - each processor file is guarded.  
 
 // TODO Insert appropriate #include <>
-#define BaudRate 9600
+#define BaudRate 115200
 //#define FCY 50000000
 #define FCY 40000000UL
 #define BAUD ((FCY/BaudRate)/16)-1
@@ -51,9 +51,10 @@
 // TODO Insert declarations
 void UART1Init(void);
 void UART1TxByte(char byte);
-char UART1RxByte(unsigned int timeout);
+char UART1RxByte(unsigned int);
 void UART1TxString(char *str);
 void BL_Receive_Cmd(void);
+char hexDigit(unsigned n);
 
 // Comment a function and leverage automatic documentation with slash star star
 /**

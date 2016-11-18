@@ -77,12 +77,11 @@ void Row_WriteLatches(char *data)
     asm("mov #0,W1"); // Lower 16-bit of Write Latches starts from 0
     asm("MOV #128,W3");
     asm("loop:");  
-    asm("TBLWTL.b [W2++], [W1++]"); // TBLWTH Ws,Wd -> Write Ws to Prog 15:0
-    asm("TBLWTL.b [W2++], [W1--]");
-    asm("TBLWTH.b [W2++], [W1]");  // TBLWTH Ws,Wd -> Write Ws 7:0 to Prog 23:16
+    asm("TBLWTH.b [W2++], [W1++]");  // TBLWTH Ws,Wd -> Write Ws 7:0 to Prog 23:16
+    asm("TBLWTL.b [W2++], [W1--]"); //y TBLWTH Ws,Wd -> Write Ws to Prog 15:0
+    asm("TBLWTL.b [W2++], [W1]");
     asm("INC2 W1, W1");
     asm("DEC W3, W3");
     asm("BRA NZ, loop");
     asm("pop     TBLPAG");
-    
 }

@@ -23,45 +23,30 @@ void UART1Init()
      * 
      * RP is remap-able peripheral and n is pin number  
      * 
-     * Therefore, when configuring the RPn pin for input, the corresponding bit in the
-     * TRISx register must be configured for input
-     * 
-     * 
      * UARTs is connected in this manner:
      * U1TX on RB5	(RP65)
      * U1RX on RB6	(RPI76)
      */
-    
-//    TRISDbits.TRISD1 = 0;                   // configure as output
-//    TRISDbits.TRISD12 = 1;                  // configure as input
- //*************************************************************
-    // Unlock Registers
-
-   
-//    RPOR0bits.RP65R = 0b00001;              //  Assign U1Tx To Pin RP65 -> pin 76
-//    RPINR18bits.U1RXR = 76;                 // Assign U1Rx To Pin RPI_76 (input)
-
-
- //*************************************************************
-
     U1MODE = 0x0;
     U1BRG = BAUD;                // 40Mhz osc, 9600 Baud
     U1STA = 0x0;
 //    IPC7 = 0x4400;              // Mid Range Interrupt Priority level, no urgent reason
     IFS0bits.U1TXIF = 0;        // Clear the Transmit Interrupt Flag
     IEC0bits.U1TXIE = 1;        // Enable Transmit Interrupts
-    IFS0bits.U1RXIF = 0;        // Clear the Recieve Interrupt Flag
-    IEC0bits.U1RXIE = 0;        // Enable Recieve Interrupts
+    IFS0bits.U1RXIF = 0;        // Clear the Receive Interrupt Flag
+    IEC0bits.U1RXIE = 1;        // Enable Receive Interrupts
     _IOLOCK = 0;
-    RPOR9 = 0;
-    RPOR9bits.RP101R = 1;       //RF5/RP101 as U1TX
-    RPINR18bits.U1RXR = 100;    //RP100/RF4 as U1RX
+    //RPOR9 = 0;
+    //RPOR9bits.RP101R = 1;       //RF5/RP101 as U1TX
+    //RPINR18bits.U1RXR = 100;    //RP100/RF4 as U1RX
+    RPOR0 = 0;
+    RPOR0bits.RP65R = 1;          // U1TX on RD1 (RP65) -> pin 76
+    RPINR18bits.U1RXR = 76;       // U1RX on RD12 (RPI76) -> pin 79
     _IOLOCK = 1;
     U1MODEbits.UARTEN = 1;      // And turn the peripheral on
     U1STAbits.UTXEN = 1;
     IFS0bits.U1TXIF = 0;
 }
- 
 // writes a byte to UART1
 void UART1TxByte(char byte)
 {
@@ -81,7 +66,8 @@ char UART1RxByte(unsigned int timeout)
     // check here for appropriate bits
     while (!U1STAbits.URXDA && timeout > 0)	// wait for data to be available
     timeout--;
-    return U1RXREG;		// read the character from the receive buffer			// return data byte
+    
+    return (U1RXREG & 0xFF);		// return data byte
 }
 // writes a string from RAM to UART1
 void UART1TxString(char *str)
@@ -92,17 +78,19 @@ void UART1TxString(char *str)
         UART1TxByte(str[i++]);
     }
 }
-void EnableU1RxInterrupt()
+char hexDigit(unsigned n)
 {
-	IEC0bits.U1RXIE = 1; // Enable UART Rx interrupt
-}
-void DisableU1Rxinterrupt()
-{	
-	IEC0bits.U1RXIE = 0; // dsiable  UART Rx interrupt	
+    if (n < 10) {
+        return n + '0';
+    } else {
+        return (n - 10) + 'A';
+    }
 }
 
-void __attribute__((__interrupt__,no_auto_psv)) _U1TXInterrupt(void)
+void charToHex(char c, char hex[3])
 {
-    IFS0bits.U1TXIF = 0;                     // Clear TX Interrupt flag
+    hex[0] = hexDigit(c / 0x10);
+    hex[1] = hexDigit(c % 0x10);
+    hex[2] = '\0';
 }
 
