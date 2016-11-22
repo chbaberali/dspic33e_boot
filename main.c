@@ -10,6 +10,7 @@
 #include "RS232_header.h"
 #include "p33EP512MU810.h"
 #include "Flash_Setup.h"
+#include "delay.h"
 
 
 #pragma config GWRP = OFF               // General Segment Write-Protect bit (General Segment may be written)
@@ -62,9 +63,9 @@
 //#define BYTES_PER_ROW (INSTR_PER_ROW * BYTES_PER_INSTRUCTION)
 //#define PM_ERASE_SIZE (INSTR_PER_ROW * BYTES_PER_INSTRUCTION * ROW_PER_PAGE)    //default erase size
 
-#define BL_START_Table_page     0x0002
-#define BL_Table_Page_offset    0x2000
-
+#define BL_START_Table_page     0x0000
+#define BL_Table_Page_offset    0x0000
+#define default_BL_delay_val    10
 /********************
         Functions
 ********************/
@@ -72,16 +73,19 @@ void TDelayms( unsigned t);
 void InitClock(void);
 void InitPorts(void);
 void Bootloader_cmd(char);
+void Reset_device(void);
+void goto_App(void);
+void Raed_Dev_ID(void);
 
 /********************
         Variables
 ********************/
 char buffer[128*3 + 2] = {0xFF};
-char str[20];
-unsigned int loop_var,high,low; 
-unsigned long temp1, temp2, temp3;
-unsigned char Command,Interrupt,done;
-unsigned int byteloop,bytecounter,pagecounter, rcv_counter;
+unsigned int temporary; 
+int loop_var1,loop_var2;
+unsigned long temp1;
+unsigned char Command,Interrupt,done,timeout=0;
+unsigned int Row_Counter,Row_Offset_Counter,Page_Offset_counter, rcv_counter;
 
 /********************
         Main
@@ -91,29 +95,33 @@ int main(void) {
     UART1Init();
     InitPorts();
     UART1TxString ("hello world \n");
+    temp1 = FM_MemRead(0x00, 0x0200);
+    Tdelaysec(10);
     while (1) {
-        
-        LATBbits.LATB5 = ~LATBbits.LATB5;
-        TDelayms(500);
-        if (Interrupt)
+        if(!timeout) // till time out do bootloader task
         {
-            Interrupt = 0;
-            Bootloader_cmd(buffer[0]);
+            LATBbits.LATB5 = ~LATBbits.LATB5;
+            TDelayms(500);
+            if (Interrupt)
+            {
+                Interrupt = 0;
+                Bootloader_cmd(buffer[0]);
+            }
         }
-            
-    }
+        else if(temp1 != 0xFFFFFF) // if application word found
+        {
+            UART1TxString ("Launching Application\n");
+            TDelayms(1);
+            goto_App();
+        }
+        else    // restart the device
+        {
+            Reset_device() ;
+        }
+
+    } // end while(1)
     return 0;
-}
-void TDelayms( unsigned t)
-{
-    T2CON = 0x8000;     // enable tmr1, Tcy, 1:1
-    while (t--)
-    {
-        TMR2 = 0;
-        while (TMR2<40000);
-    }
-    T2CON = 0x0000;
-}
+}// end main
 void InitClock(void)
 {
     PLLFBD=38;                          // M=40
@@ -136,79 +144,101 @@ void Bootloader_cmd(char Command)
     {
         case 0x01:
             rcv_counter = 0;
-            temp2 = FM_MemRead(0xFF, 0x0002); // read devid
-            UART1TxString("Device ID is 0x");
-            UART1TxByte( ((temp2 >> 12) & 0x0F)+0x30 );
-            UART1TxByte( ((temp2 >> 8) & 0x0F) +0x30 );
-            UART1TxByte( ((temp2 >> 4) & 0x0F) +0x30 );
-            UART1TxByte( ((temp2 ) & 0x0F) +0x30 );
-            UART1TxByte(13);
+            Raed_Dev_ID();
             break;
         case 0x02: 
-            UART1TxString("Resetting Device\n");
-            TDelayms(500);
-            asm ("reset"); 
+            Reset_device();
             break;
         case 0x03:
-            for (loop_var = 0; loop_var < 512; loop_var+=2)
-            {
-                temp2 = FM_MemRead(BL_START_Table_page, BL_Table_Page_offset + loop_var); // new row address
-                UART1TxString("data is 0x");
-                UART1TxByte( hexDigit( (temp2 >> 20) & 0x0F)  );
-                UART1TxByte( hexDigit( (temp2 >> 16) & 0x0F)  );
-                UART1TxByte( hexDigit( (temp2 >> 12) & 0x0F)  );
-                UART1TxByte( hexDigit( (temp2 >> 8) & 0x0F)  );
-                UART1TxByte( hexDigit( (temp2 >> 4) & 0x0F)  );
-                UART1TxByte( hexDigit( temp2 & 0x0F));
-                UART1TxByte(13);
-                UART1TxByte(10);
-            }
             rcv_counter = 0;
+            for (loop_var2 = 0; loop_var2 < 2048; loop_var2 += 2)
+            {
+                temp1 = FM_MemRead(BL_START_Table_page, BL_Table_Page_offset + loop_var2); // new row address
+                UART1TxString("data is 0x");
+                for (loop_var1 = 20; loop_var1 >= 0; loop_var1 -= 4)
+                {
+                    temporary = (temp1 >> loop_var1) & 0x0F;
+                    UART1TxByte(hexDigit(temporary));
+                }
+                UART1TxString("\r\n");
+            }
             break;
         case 0x04:
-            byteloop = 0;
-            bytecounter = 0x0;
-            pagecounter = 0x0;
-            rcv_counter = 0; 
+            Row_Counter  = 0x0;
+            Row_Offset_Counter = 0x0;
+            Page_Offset_counter  = 0x0;
+            rcv_counter  = 0x0; 
             done = 0;
-     
+            
             FM_PageErase(BL_START_Table_page, BL_Table_Page_offset);
             UART1TxString("OK\n");  // tell pyton device is ready
+            
             while (done != 1)
             {
                 while (rcv_counter != 384); // wait until a complete row is not received
 
-                    Row_WriteLatches(&buffer[0]);
-                    FM_Single_Row_Prog ((BL_START_Table_page + pagecounter), (BL_Table_Page_offset + bytecounter));
-                    
-                    bytecounter += 256;
-                    if(bytecounter == 2048) // if one page is written /* need to check the maths again must be 0xFFFF*/
-                        {
-                            pagecounter += 1;
-                            bytecounter = 0x0000;
-                            FM_PageErase(BL_START_Table_page + pagecounter, BL_Table_Page_offset + bytecounter);
-                        }
-                    if(buffer[384] == 'F') // F = finish
-                    {
-                        done = 1;
-                        UART1TxString("KO\n");
-                    }
-                    else
-                    {
-                        UART1TxString("OK\n");  // tell host that we have written 1 row
-                    }
-                    rcv_counter = 0;
+                Row_WriteLatches(&buffer[0]);
+                FM_Single_Row_Prog ((BL_START_Table_page + Page_Offset_counter), (BL_Table_Page_offset + Row_Offset_Counter));
+
+                Row_Counter += 1; // -> means that 128*3 bytes are written
+                Row_Offset_Counter = Row_Counter * 256; // Row_Offset_Counter should increment by rowcount*256 bcz address increments by 2.
+                // Next block/page eraser part
+                if ((Row_Counter % 8) == 0) // check if 8 rows are written? // if yes erase next page
+                {
+                    FM_PageErase(BL_START_Table_page + Page_Offset_counter, BL_Table_Page_offset + Row_Offset_Counter);
+                }
+                if(Row_Counter == 256) // if row count reach FFFF
+                {
+                    Page_Offset_counter += 1; // increment table page
+                    Row_Counter = 0;
+                }
+                // python synchronizer part
+                if(buffer[384] == 'F') // F = finish
+                {
+                    done = 1;
+                    UART1TxString("KO\n");
+                }
+                else
+                {
+                    UART1TxString("OK\n");  // tell host that we have written 1 row
+                }
+                rcv_counter = 0;
             }
             break;
         case 0x05: 
             rcv_counter = 0; 
-            asm("goto 0x22000");              // jump to application address for example 0x220000
-            asm("nop");
+            goto_App();
             break;
         default:
+            UART1TxString("Wrong command, please enter between 0x1 and 0x05\n");
             rcv_counter = 0;
             break;
     }
+}
+void Reset_device(void)
+{
+    UART1TxString("Resetting Device\n");
+    TDelayms(1);
+    asm ("reset");
+}
+void goto_App(void)
+{
+    asm("goto 0x00");              // jump to application address for example 0x220000
+    asm("nop");
+}
+void Raed_Dev_ID(void)
+{
+    temp1 = FM_MemRead(0xFF, 0x0002); // read devid
+    UART1TxString("Target device dsPIC33EP512MU810 found\r\n");
+    UART1TxString("FW rev 1.0\r\n");
+    UART1TxString("Communication interface UART\r\n");
+    UART1TxString("Device ID is 0x");
+    for (loop_var1 = 12; loop_var1 >= 0; loop_var1 -=4)
+    {
+        temporary = (temp1 >> loop_var1) & 0x0F;
+        UART1TxByte(hexDigit(temporary));
+    }
+    UART1TxString("\r\n");
 }
 void __attribute__((__interrupt__,no_auto_psv)) _Aux_Interrupt(void)
 {
@@ -216,11 +246,16 @@ void __attribute__((__interrupt__,no_auto_psv)) _Aux_Interrupt(void)
     {
       Interrupt = 1;
       buffer[rcv_counter++] = U1RXREG & 0xFF;
-      IFS0bits.U1RXIF = 0;                     // Clear RX Interrupt flag
+      IFS0bits.U1RXIF = 0;      // Clear RX Interrupt flag
     }
     if (IFS0bits.U1TXIF)
     {
-       IFS0bits.U1TXIF = 0;                     // Clear TX Interrupt flag
+       IFS0bits.U1TXIF = 0;     // Clear TX Interrupt flag
+    }
+    if(IFS3bits.T9IF)
+    {
+        timeout = 1;
+        TimerOff();
     }
 }
 

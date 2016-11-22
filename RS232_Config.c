@@ -81,9 +81,9 @@ void UART1TxString(char *str)
 char hexDigit(unsigned n)
 {
     if (n < 10) {
-        return n + '0';
+        return n + 0x30;
     } else {
-        return (n - 10) + 'A';
+        return (n - 10) + 0x41;
     }
 }
 
